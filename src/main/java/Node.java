@@ -39,12 +39,17 @@ public class Node extends AbstractBehavior<NodeMessage> {
     public Behavior<NodeMessage> dispatch(NodeMessage msg){
         switch(msg) {
             case NodeMessage.Request request:
+                synchronizeClock(request.time());
                 requestQueue.add(request);
+
+               // getContext().getLog().info("Acknow " + request);
                 break;
             case NodeMessage.Release release:
+                synchronizeClock(release.time());
                 //release behavior
                 break;
             case NodeMessage.Ack ack:
+                synchronizeClock(ack.time());
                 //ack behavior
                 break;
             case NodeMessage.Shutdown shutdown:
@@ -52,5 +57,11 @@ public class Node extends AbstractBehavior<NodeMessage> {
                 return Behaviors.stopped();
         }
         return this;
+    }
+
+    private void synchronizeClock(int messageTime){
+        if (clock.getTime() <= messageTime){
+            clock.setTime(messageTime + 1);
+        }
     }
 }

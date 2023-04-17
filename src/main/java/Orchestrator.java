@@ -14,8 +14,6 @@ public class Orchestrator extends AbstractBehavior<String> {
         });
     }
 
-    private ActorRef<EchoRequest> echo;
-    private ActorRef<ProxyMessage> proxy;
 
     private Orchestrator(ActorContext ctxt, ActorRef<EchoRequest> echo, ActorRef<ProxyMessage> proxy) {
         super(ctxt);
@@ -31,18 +29,18 @@ public class Orchestrator extends AbstractBehavior<String> {
 
     public Behavior<String> dispatch(String txt) {
         getContext().getLog().info("[Orchestrator] received "+txt);
-        switch (txt) {
-            case "repeat":
-                proxy.tell(new ProxyMessage.Repeat());
-                break;
-            // The Scala version uses a different type here, and essentially uses Behavior<Object>.
-            case "shutdown":
-                proxy.tell(new ProxyMessage.Shutdown());
-                echo.tell(new EchoRequest.End());
-                return Behaviors.stopped();
-            default:
-                proxy.tell(new ProxyMessage.Request(txt));
-        }
+//        switch (txt) {
+//            case "repeat":
+//                proxy.tell(new ProxyMessage.Repeat());
+//                break;
+//            // The Scala version uses a different type here, and essentially uses Behavior<Object>.
+//            case "shutdown":
+//                proxy.tell(new ProxyMessage.Shutdown());
+//                echo.tell(new EchoRequest.End());
+//                return Behaviors.stopped();
+//            default:
+//                proxy.tell(new ProxyMessage.Request(txt));
+//        }
         return this;
     }
 }

@@ -20,13 +20,14 @@ public class RequestQueueTest {
     public static final TestKitJunitResource testKit = new TestKitJunitResource();
 
     @Before
-    public void setUp(){
+    public void setUp() {
         this.probe = testKit.createTestProbe();
     }
 
 
     @Test
-    public void testIsEmpty(){
+    public void testIsEmpty() {
     }
+}
 
 

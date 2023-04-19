@@ -1,11 +1,9 @@
-import akka.actor.Actor;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.ActorRef;
-import scala.Int;
 
 import java.util.*;
 
@@ -32,6 +30,8 @@ public class Node extends AbstractBehavior<NodeMessage> {
 
     private HashMap<ActorRef<NodeMessage>, Integer> lastMsgTimeLog = new HashMap<>();
 
+    private NodeMessage.Request lastRequest = null;
+
     @Override
     public Receive<NodeMessage> createReceive() {
         return newReceiveBuilder()
@@ -42,7 +42,10 @@ public class Node extends AbstractBehavior<NodeMessage> {
     public Behavior<NodeMessage> dispatch(NodeMessage msg){
         switch(msg) {
             case NodeMessage.InitializeNodeRefs init:
-                initializeNodeRefs();
+                initializeNodeRefs(init.nodeRefs());
+                break;
+            case NodeMessage.Start start:
+                start();
                 break;
             case NodeMessage.Request request:
                 handleRequest(request);
@@ -51,11 +54,9 @@ public class Node extends AbstractBehavior<NodeMessage> {
                 handleRelease(release);
                 break;
             case NodeMessage.Ack ack:
-                synchronizeClock(ack.time());
-                //ack behavior
+                handleAcknowledge(ack);
                 break;
             case NodeMessage.Shutdown shutdown:
-                // perform all necessary shutdown behavior
                 return Behaviors.stopped();
         }
         return this;
@@ -65,6 +66,12 @@ public class Node extends AbstractBehavior<NodeMessage> {
         for (ActorRef<NodeMessage> ref : nodeRefs){
             this.lastMsgTimeLog.put(ref, 0);
         }
+    }
+
+    private void start(){
+        this.lastRequest = new NodeMessage.Request(this.getContext().getSelf(), this.clock.getTime());
+        notifyAllNodes(this.lastRequest);
+        this.clock.increment();
     }
 
     private void handleRequest(NodeMessage.Request request){
@@ -77,16 +84,62 @@ public class Node extends AbstractBehavior<NodeMessage> {
         synchronizeClock(release.time());
         this.requestQueue.removeRequestOfSender(release.sender());
         this.lastMsgTimeLog.put(release.sender(), release.time());
+        if (isMyTurnToAcquireResource()){
+            acquireResource();
+            releaseResource();
+        }
     }
 
     private void handleAcknowledge(NodeMessage.Ack ack){
         synchronizeClock(ack.time());
         this.lastMsgTimeLog.put(ack.sender(), ack.time());
+        if (isMyTurnToAcquireResource()){
+            acquireResource();
+            releaseResource();
+        }
+    }
+
+    public void notifyAllNodes(NodeMessage msg){
+        this.lastMsgTimeLog.forEach((key, value) -> {
+            key.tell(msg);
+        });
+    }
+
+    private void releaseResource(){
+        notifyAllNodes(new NodeMessage.Release(this.getContext().getSelf(), this.clock.getTime()));
+        this.clock.increment();
+        requestResource();
+    }
+
+    private void requestResource(){
+        this.lastRequest = new NodeMessage.Request(this.getContext().getSelf(), this.clock.getTime());
+        notifyAllNodes(this.lastRequest);
+        this.clock.increment();
+
+    }
+
+    private void acquireResource(){
+        this.clock.increment();
     }
 
     private void synchronizeClock(int messageTime){
         if (clock.getTime() <= messageTime){
             clock.setTime(messageTime + 1);
         }
+    }
+    private boolean isMyTurnToAcquireResource(){
+        return isMyRequestFirst() && haveHeardFromAllNodesSinceLastRequest();
+    }
+    private boolean isMyRequestFirst(){
+        return this.requestQueue.first().sender() == this.getContext().getSelf();
+    }
+
+    private boolean haveHeardFromAllNodesSinceLastRequest() {
+        for (Integer time : this.lastMsgTimeLog.values()){
+            if (time <= this.lastRequest.time()) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -6,7 +6,9 @@ import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.ActorRef;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.TreeSet;
 
 public class Node extends AbstractBehavior<NodeMessage> {
 
@@ -27,7 +29,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
 
     private LamportClock clock;
     private List<ActorRef<NodeMessage>> systemNodes = null;
-    private List<NodeMessage> requestQueue = new ArrayList<>();
+    private RequestQueue requestQueue = new RequestQueue();
 
     @Override
     public Receive<NodeMessage> createReceive() {
@@ -39,14 +41,10 @@ public class Node extends AbstractBehavior<NodeMessage> {
     public Behavior<NodeMessage> dispatch(NodeMessage msg){
         switch(msg) {
             case NodeMessage.Request request:
-                synchronizeClock(request.time());
-                requestQueue.add(request);
-
-               // getContext().getLog().info("Acknow " + request);
+                handleRequest(request);
                 break;
             case NodeMessage.Release release:
-                synchronizeClock(release.time());
-                //release behavior
+                handleRelease(release);
                 break;
             case NodeMessage.Ack ack:
                 synchronizeClock(ack.time());
@@ -57,6 +55,16 @@ public class Node extends AbstractBehavior<NodeMessage> {
                 return Behaviors.stopped();
         }
         return this;
+    }
+
+    private void handleRequest(NodeMessage.Request request){
+        synchronizeClock(request.time());
+        requestQueue.add(request);
+    }
+
+    private void handleRelease(NodeMessage.Release release) {
+        synchronizeClock(release.time());
+        this.requestQueue.removeRequestOfSender(release.sender());
     }
 
     private void synchronizeClock(int messageTime){

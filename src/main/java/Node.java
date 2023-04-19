@@ -22,6 +22,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
     private Node(ActorContext context) {
         super(context);
         clock = new LamportClock();
+        aquiredCount = 0;
     }
 
     private LamportClock clock;
@@ -31,6 +32,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
     private HashMap<ActorRef<NodeMessage>, Integer> lastMsgTimeLog = new HashMap<>();
 
     private NodeMessage.Request lastRequest = null;
+    private int aquiredCount;
 
     @Override
     public Receive<NodeMessage> createReceive() {
@@ -57,6 +59,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
                 handleAcknowledge(ack);
                 break;
             case NodeMessage.Shutdown shutdown:
+                handleShutdown();
                 return Behaviors.stopped();
         }
         return this;
@@ -69,6 +72,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
     }
 
     private void start(){
+        getContext().getLog().info(getContext().getSelf().path().name() + " STARTING");
         this.lastRequest = new NodeMessage.Request(this.getContext().getSelf(), this.clock.getTime());
         notifyAllNodes(this.lastRequest);
         this.clock.increment();
@@ -78,6 +82,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
         synchronizeClock(request.time());
         requestQueue.add(request);
         this.lastMsgTimeLog.put(request.sender(), request.time());
+        request.sender().tell(new NodeMessage.Ack(this.getContext().getSelf(), this.clock.getTime()));
     }
 
     private void handleRelease(NodeMessage.Release release) {
@@ -105,13 +110,8 @@ public class Node extends AbstractBehavior<NodeMessage> {
         });
     }
 
-    private void releaseResource(){
-        notifyAllNodes(new NodeMessage.Release(this.getContext().getSelf(), this.clock.getTime()));
-        this.clock.increment();
-        requestResource();
-    }
-
     private void requestResource(){
+        getContext().getLog().info(getContext().getSelf().path().name() + " REQUESTING RESOURCE");
         this.lastRequest = new NodeMessage.Request(this.getContext().getSelf(), this.clock.getTime());
         notifyAllNodes(this.lastRequest);
         this.clock.increment();
@@ -119,7 +119,16 @@ public class Node extends AbstractBehavior<NodeMessage> {
     }
 
     private void acquireResource(){
+        getContext().getLog().info(getContext().getSelf().path().name() + " ACQUIRING RESOURCE");
+        aquiredCount++;
         this.clock.increment();
+    }
+
+    private void releaseResource(){
+        getContext().getLog().info(getContext().getSelf().path().name() + " RELEASING RESOURCE");
+        notifyAllNodes(new NodeMessage.Release(this.getContext().getSelf(), this.clock.getTime()));
+        this.clock.increment();
+        requestResource();
     }
 
     private void synchronizeClock(int messageTime){
@@ -127,13 +136,13 @@ public class Node extends AbstractBehavior<NodeMessage> {
             clock.setTime(messageTime + 1);
         }
     }
+
     private boolean isMyTurnToAcquireResource(){
         return isMyRequestFirst() && haveHeardFromAllNodesSinceLastRequest();
     }
     private boolean isMyRequestFirst(){
         return this.requestQueue.first().sender() == this.getContext().getSelf();
     }
-
     private boolean haveHeardFromAllNodesSinceLastRequest() {
         for (Integer time : this.lastMsgTimeLog.values()){
             if (time <= this.lastRequest.time()) {
@@ -141,5 +150,9 @@ public class Node extends AbstractBehavior<NodeMessage> {
             }
         }
         return true;
+    }
+
+    private void handleShutdown() {
+        getContext().getLog().info(getContext().getSelf().path().name() + " Shutting Down count:  " + aquiredCount);
     }
 }

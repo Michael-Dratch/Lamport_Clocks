@@ -5,12 +5,9 @@ import java.io.InputStreamReader;
 
 
 public class AkkaDemo {
-    // The only IO we're doing here is console IO, if that fails we can't really recover
     public static void main(String[] args) throws IOException {
-        System.out.println("Running Java version");
-        System.out.println(args[0]);
 
-        int nodeCount = 3;
+        int nodeCount = Integer.valueOf(args[0]);
 
 
         var orc = ActorSystem.create(Orchestrator.create(), "java-akka");
@@ -30,6 +27,5 @@ public class AkkaDemo {
 
     private static void terminateSystem(ActorSystem<OrchMessage> orc) {
         orc.tell(new OrchMessage.ShutDown());
-//        orc.terminate();
     }
 }

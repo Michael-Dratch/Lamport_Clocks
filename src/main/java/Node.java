@@ -34,6 +34,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
     private NodeMessage.Request lastRequest = null;
     private int aquiredCount;
 
+
     @Override
     public Receive<NodeMessage> createReceive() {
         return newReceiveBuilder()
@@ -72,7 +73,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
     }
 
     private void start(){
-        getContext().getLog().info(getContext().getSelf().path().name() + " STARTING");
+        getContext().getLog().info(getContext().getSelf().path().uid() + " STARTING");
         this.lastRequest = new NodeMessage.Request(this.getContext().getSelf(), this.clock.getTime());
         notifyAllNodes(this.lastRequest);
         this.clock.increment();
@@ -111,7 +112,7 @@ public class Node extends AbstractBehavior<NodeMessage> {
     }
 
     private void requestResource(){
-        getContext().getLog().info(getContext().getSelf().path().name() + " REQUESTING RESOURCE");
+        getContext().getLog().info(getContext().getSelf().path().uid() + " ACQUIRING RESOURCE");
         this.lastRequest = new NodeMessage.Request(this.getContext().getSelf(), this.clock.getTime());
         notifyAllNodes(this.lastRequest);
         this.clock.increment();
@@ -119,13 +120,13 @@ public class Node extends AbstractBehavior<NodeMessage> {
     }
 
     private void acquireResource(){
-        getContext().getLog().info(getContext().getSelf().path().name() + " ACQUIRING RESOURCE");
+        getContext().getLog().info(getContext().getSelf().path().uid() + " OWNED RESOURCE");
         aquiredCount++;
         this.clock.increment();
     }
 
     private void releaseResource(){
-        getContext().getLog().info(getContext().getSelf().path().name() + " RELEASING RESOURCE");
+        getContext().getLog().info(getContext().getSelf().path().uid() + " RELEASING RESOURCE");
         notifyAllNodes(new NodeMessage.Release(this.getContext().getSelf(), this.clock.getTime()));
         this.clock.increment();
         requestResource();
@@ -153,6 +154,6 @@ public class Node extends AbstractBehavior<NodeMessage> {
     }
 
     private void handleShutdown() {
-        getContext().getLog().info(getContext().getSelf().path().name() + " Shutting Down count:  " + aquiredCount);
+        getContext().getLog().info(getContext().getSelf().path().uid() + " Shutting Down count:  " + aquiredCount);
     }
 }

@@ -14,6 +14,7 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
 
     private Orchestrator(ActorContext ctxt) {
         super(ctxt);
+        countTerminatedNodes = 0;
     }
 
     private ArrayList<ActorRef<NodeMessage>> nodeRefs;
@@ -24,14 +25,19 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
           .build();
     }
 
+
     public Behavior<OrchMessage> dispatch(OrchMessage msg) {
-        getContext().getLog().info("[Orchestrator] received "+ msg);
         switch (msg) {
-            case OrchMessage.start start:
+            case OrchMessage.Start start:
                 handleStart(start);
                 break;
-            case OrchMessage.shutDown shutDown:
+            case OrchMessage.ShutDown shutDown:
                 handleShutdown();
+                break;
+            case OrchMessage.NodeTerminated nodeTerminated:
+                handleTerminatedNodes();
+                break;
+            case OrchMessage.ShutDownComplete complete:
                 return Behaviors.stopped();
             default:
                 break;
@@ -39,7 +45,9 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
         return this;
     }
 
-    private void handleStart(OrchMessage.start start) {
+    private int countTerminatedNodes;
+
+    private void handleStart(OrchMessage.Start start) {
         getContext().getLog().info("[Orchestrator] spawning nodes ");
         this.nodeRefs = createNodes(start.nodeCount());
         notifyAllNodes(new NodeMessage.InitializeNodeRefs(this.nodeRefs));
@@ -52,6 +60,7 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
         for (int count = 0; count < nodeCount; count++){
             var nodeRef = this.getContext().spawn(Node.create(), "NODE_" + count);
             nodeRefs.add(nodeRef);
+            this.getContext().watchWith(nodeRef, new OrchMessage.NodeTerminated());
         }
         return nodeRefs;
     }
@@ -60,6 +69,13 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
         notifyAllNodes(new NodeMessage.Shutdown());
     }
 
+    private void handleTerminatedNodes(){
+        countTerminatedNodes++;
+        if (countTerminatedNodes == this.nodeRefs.size()){
+            this.getContext().getLog().info("Shutdown Complete");
+            this.getContext().getSelf().tell(new OrchMessage.ShutDownComplete());
+        }
+    }
     private void notifyAllNodes(NodeMessage msg){
         for (ActorRef<NodeMessage> node : this.nodeRefs){
             node.tell(msg);
